@@ -1,0 +1,168 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-1.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String?
+  email       String   @unique
+  password    String?
+  phoneNumber String   @default("")
+  address     String?
+  role        Role? // admin, customer, restaurant_owner,courier
+  createdAt   DateTime @default(now())
+  orders      Order[] // Kullanıcının siparişleri
+  Review      Review[]
+}
+
+enum Role {
+  admin
+  customer
+  restaurant_owner
+  courier
+}
+
+model Restaurant {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId     String    @db.ObjectId
+  name        String
+  description String?
+  address     String?
+  phone       String?
+  location    GeoPoint
+  categories  String[]
+  rating      Float
+  image       String? // Restoran fotoğrafı (Opsiyonel)
+  menu        Menu[] // Restoranın menüsü
+  createdAt   DateTime? @default(now())
+  Review      Review[]
+  Order       Order[]
+}
+
+model Menu {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  restaurantId String      @db.ObjectId
+  name         String
+  description  String?
+  price        Float
+  image        String? // Ürün fotoğrafı (Opsiyonel)
+  category     String
+  available    Boolean
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id]) // Menüde restoran referansı
+  Item         Item[]
+  OrderItem    OrderItem[]
+}
+
+enum OrderStatus {
+  BEKLEMEDE
+  TAMAMLANDI
+  IPTAL_EDILDI
+  YOLDA
+}
+
+model OrderItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  menuId    String   @db.ObjectId
+  quantity  Int
+  price     Float
+  order     Order    @relation(fields: [orderId], references: [id])
+  menu      Menu     @relation(fields: [menuId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Courier {
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  phone         String
+  status        String              @default("MUSAIT")
+  orders        Order[]
+  cancellations OrderCancellation[]
+  createdAt     DateTime?           @default(now())
+  updatedAt     DateTime?           @updatedAt
+}
+
+enum CourierStatus {
+  MUSAIT
+  MESGUL
+  OFFLINE
+}
+
+model Order {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  user            User                @relation(fields: [userId], references: [id])
+  userId          String              @db.ObjectId
+  restaurant      Restaurant          @relation(fields: [restaurantId], references: [id])
+  restaurantId    String              @db.ObjectId
+  items           OrderItem[]
+  status          String              @default("BEKLEMEDE")
+  totalPrice      Float
+  orderedAt       DateTime            @default(now())
+  courier         Courier?            @relation(fields: [courierId], references: [id])
+  courierId       String?             @db.ObjectId
+  createdAt       DateTime?           @default(now())
+  updatedAt       DateTime?           @updatedAt
+  Item            Item[]
+  cancellations   OrderCancellation[]
+  deliveryAddress String?
+  paymentMethod   String?             @default("CREDIT_CARD")
+}
+
+model Item {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  orderId  String @db.ObjectId // Order ile ilişki
+  menuId   String @db.ObjectId
+  quantity Int
+  price    Float
+  order    Order  @relation(fields: [orderId], references: [id]) // Siparişle ilişki
+  menu     Menu   @relation(fields: [menuId], references: [id]) // Menü ile ilişki
+}
+
+model Review {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String     @db.ObjectId
+  restaurantId String     @db.ObjectId
+  rating       Int
+  comment      String
+  reportCount  Int        @default(0)
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id])
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+}
+
+model Delivery {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  courierId String   @db.ObjectId
+  status    String?
+  location  GeoPoint
+  updatedAt DateTime @default(now())
+}
+
+model OrderCancellation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  courierId String   @db.ObjectId
+  reason    String
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id])
+  courier   Courier  @relation(fields: [courierId], references: [id])
+}
+
+type GeoPoint {
+  lat Float
+  lng Float
+}
